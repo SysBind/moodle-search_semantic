@@ -19,7 +19,7 @@ services:
       "if [ ! -f '/var/www/html/public/version.php' ]; then
          echo 'Checking out MOODLE_502_STABLE from moodle....' &&
          git clone --depth 1 -b MDL-RAG-AI-ACTIONS https://github.com/SysBind/moodle /tmp/moodle &&
-         cp -a /tmp/moodle /var/www/html/ &&
+         cp -a /tmp/moodle/. /var/www/html/ &&
          rm -rf /tmp/moodle;
        fi"
       
@@ -37,7 +37,7 @@ services:
     volumes:
       - moodle_code:/var/www/html
       - moodle_data:/var/www/moodledata
-      - ./moodle-config-file.php:/var/www/html/config.php
+      - ./docker-moodle-config.php:/var/www/html/config.php
       - .:/var/www/html/public/search/engine/semantic:ro
     depends_on:
       db:
