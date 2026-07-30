@@ -29,21 +29,21 @@ fi
 
 # Ensure PHPUnit database environment is initialized
 echo "--> Verifying PHPUnit environment initialization..."
-docker compose exec "$CONTAINER" bash -c "
-if [ ! -d /var/www/phpunit_moodledata/phpunit ]; then
-    echo 'Initializing PHPUnit database and dataroot...'
-    php /var/www/html/public/admin/tool/phpunit/cli/util.php --init
+if ! docker compose exec "$CONTAINER" php /var/www/html/public/admin/tool/phpunit/cli/util.php --diag >/dev/null 2>&1; then
+    echo "Initializing PHPUnit database and dataroot..."
+    docker compose exec "$CONTAINER" php /var/www/html/public/admin/tool/phpunit/cli/init.php
 fi
-"
+
 
 # Determine tests to execute
 if [ $# -gt 0 ]; then
     TEST_ARGS=("$@")
 else
-    echo "No specific test path provided. Running RAG/AI subsystem test suite..."
-    TEST_ARGS=("public/ai/tests")
+    echo "No specific test path provided. Running search_semantic unit tests..."
+    TEST_ARGS=("public/search/engine/semantic/tests")
 fi
 
 echo "--> Executing PHPUnit: ${TEST_ARGS[*]}"
 echo "=========================================="
 docker compose exec "$CONTAINER" /var/www/html/vendor/bin/phpunit "${TEST_ARGS[@]}"
+
