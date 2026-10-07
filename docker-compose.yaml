@@ -26,18 +26,14 @@ services:
   moodle:
     image: moodlehq/moodle-php-apache:8.4-bookworm
     ports:
-      - "8081:80"
+      - "80:80"
     environment:
       APACHE_DOCUMENT_ROOT: /var/www/html/public
-      MOODLE_DB_HOST: db
-      MOODLE_DB_USER: postgres
-      MOODLE_DB_PASSWORD: p@ssw0rd
-      MOODLE_DB_NAME: moodle
-      MOODLE_URL: http://localhost:8081
     volumes:
       - moodle_code:/var/www/html
       - moodle_data:/var/www/moodledata
       - ./docker-moodle-config.php:/var/www/html/config.php
+      - ./docker-php.conf:/etc/apache2/conf-available/docker-php.conf:ro
       - .:/var/www/html/public/search/engine/semantic:ro
     depends_on:
       db:
