@@ -17,14 +17,14 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: >
       "if [ ! -f '/var/www/html/public/version.php' ]; then
-         echo 'Checking out MOODLE_502_STABLE from moodle....' &&
+         echo 'Checking out MOODLE_503_STABLE from moodle....' &&
          git clone --depth 1 -b MDL-RAG-AI-ACTIONS https://github.com/SysBind/moodle /tmp/moodle &&
          cp -a /tmp/moodle/. /var/www/html/ &&
          rm -rf /tmp/moodle;
        fi"
       
   moodle:
-    image: moodlehq/moodle-php-apache:8.4-bullseye
+    image: moodlehq/moodle-php-apache:8.4-bookworm
     ports:
       - "8081:80"
     environment:
