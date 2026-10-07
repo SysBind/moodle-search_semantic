@@ -20,6 +20,7 @@ $CFG->dboptions = array (
 $CFG->wwwroot   = 'http://localhost:8081';
 $CFG->dataroot  = '/var/www/moodledata';
 $CFG->admin     = 'admin';
+$CFG->routerconfigured = true;
 
 $CFG->phpunit_dataroot = '/var/www/phpunit_moodledata';
 $CFG->phpunit_prefix = 'phpu_';
