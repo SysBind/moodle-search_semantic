@@ -52,8 +52,32 @@ services:
       composer install --no-dev --classmap-authoritative --working-dir=/var/www/html &&
       apache2-foreground
       "
-      
+
+  cron:
+    image: moodlehq/moodle-php-apache:8.4-bookworm
+    restart: unless-stopped
+    volumes:
+      - moodle_code:/var/www/html
+      - moodle_data:/var/www/moodledata
+      - ./docker-moodle-config.php:/var/www/html/config.php
+      - .:/var/www/html/public/search/engine/semantic:ro
+    depends_on:
+      db:
+        condition: service_started
+      moodle-init-code:
+        condition: service_completed_successfully
+      moodle:
+        condition: service_started
+    command: >
+      sh -c "
+      while true; do
+        su -s /bin/sh www-data -c 'php /var/www/html/admin/cli/cron.php --keep-alive=0'
+        sleep 60
+      done
+      "
+
 volumes:
   postgres_data:
   moodle_code:
   moodle_data:
+
