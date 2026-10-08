@@ -70,6 +70,7 @@ services:
         condition: service_started
     command: >
       sh -c "
+      su -s /bin/sh www-data -c 'php /var/www/html/admin/cli/install_database.php --agree-license --adminpass=q1w2e3r4';
       while true; do
         su -s /bin/sh www-data -c 'php /var/www/html/admin/cli/cron.php --keep-alive=0'
         sleep 60
