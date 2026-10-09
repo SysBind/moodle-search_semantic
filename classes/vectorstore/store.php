@@ -47,6 +47,16 @@ interface store {
     public function is_ready(): true|string;
 
     /**
+     * Checks whether the collection exists, without creating it.
+     *
+     * Read-only, so the query side can check the index is built without creating empty collections.
+     *
+     * @param collection $collection
+     * @return bool
+     */
+    public function collection_exists(collection $collection): bool;
+
+    /**
      * Creates the collection and its indexes if they do not exist yet.
      *
      * Must be idempotent. If the collection already exists with a different dimension or distance,

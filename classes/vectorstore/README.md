@@ -34,6 +34,7 @@ The store knows nothing about embedding models or Moodle permissions.
 ```php
 interface store {
     public function is_ready(): true|string;
+    public function collection_exists(collection $collection): bool;
     public function ensure_collection(collection $collection): void;
     public function drop_collection(collection $collection): void;
     public function upsert(collection $collection, array $chunks): void;
@@ -46,10 +47,12 @@ How the engine uses it:
 
 | `core_search\engine` method | Store call |
 |---|---|
-| `is_server_ready()` | `is_ready()` |
+| `is_server_ready()` | `is_ready()` and `collection_exists()` |
+| `index_starting()` | `ensure_collection()` |
 | `add_document()` / `add_document_batch()` | `upsert()` |
 | `delete_by_id($id)` | `delete(filter::eq('docid', $id))` |
-| `delete($areaid)` | `delete(filter::eq('areaid', $areaid))`, or `filter::all()` when `$areaid` is null |
+| `delete($areaid)` | `delete(filter::eq('areaid', $areaid))` |
+| `delete(null)` | `drop_collection()` then `ensure_collection()` |
 | `delete_index_for_context($id)` | `delete(filter::eq('contextid', $id))` |
 | `delete_index_for_course($id)` | `delete(filter::eq('courseid', $id))` |
 | `execute_query()` | `search()` |
@@ -150,16 +153,72 @@ The real translation also has to handle `everything` (admin, no restriction), th
 ### Collections are tied to one embedding model
 
 Vectors from different models, or with different dimensions, cannot be compared. A `collection`
-therefore records its dimensions, distance metric and model id. To switch models without downtime:
-
-1. Create a new collection, for example `semantic_v2`, with the new dimensions.
-2. Reindex into it while queries keep using the old collection.
-3. Switch queries to the new collection and drop the old one.
+therefore records its dimensions, distance metric and model id.
 
 `ensure_collection()` is idempotent but must throw if the collection already exists with
 different dimensions or distance, rather than silently reusing it.
 
 Collection names must match `^[a-z][a-z0-9_]{0,62}$`, so they are safe as SQL table names.
+
+## How the engine uses collections
+
+### The collection is derived from the engine settings
+
+The engine builds its `collection` in its constructor from its embedding settings. No I/O is
+involved, and no separate "current collection" setting is stored:
+
+```php
+public function __construct(bool $alternateconfiguration = false) {
+    parent::__construct($alternateconfiguration);
+    $model = $this->config->embeddingmodel;
+    $dims = (int)$this->config->embeddingdimensions;
+    $this->collection = new collection(
+        'semantic_' . substr(sha1($model . '|' . $dims), 0, 12),
+        $dims, distance::cosine, $model);
+}
+```
+
+The name is a hash of the model and dimensions, so changing the model gives a different
+collection.
+
+### Only indexing creates collections
+
+- `index_starting()` calls `ensure_collection()`.
+- `is_server_ready()` calls `collection_exists()` and reports an error if the collection is
+  missing. The query side never calls `ensure_collection()`, because that would silently create
+  empty collections.
+- `delete(null)` (admin "Delete index", or `search/cli/indexer.php --reindex`) drops and recreates
+  the collection, which is faster than deleting every chunk.
+
+### Changing the embedding model
+
+Moodle stores indexing progress per search area (`_lastindexrun` and related settings), not per
+engine. After a model change the new collection is empty, but Moodle still treats every area as
+indexed, so only content edited afterwards would be indexed. A full reindex is required.
+
+To change models without search downtime, use core's query-only engine
+(`$CFG->searchenginequeryonly`) together with the engine's alternate configuration
+(`engine::has_alternate_configuration()`). With the alternate configuration, every `alternateX`
+setting replaces `X` in `$this->config`, so an alternate engine set to the old model derives the old
+collection with no extra code.
+
+1. Copy the current model settings into `alternateembeddingmodel` and
+   `alternateembeddingdimensions`.
+2. Set "Query-only search engine" to `semantic-alternate`. Queries keep using the old collection.
+3. Change the main model settings, then run `php search/cli/indexer.php --reindex`. This resets the
+   per-area progress and fills the new collection. The `delete()` it calls only affects the
+   indexing engine's collection.
+4. Clear "Query-only search engine", then drop the old collection.
+
+The engine needs `has_alternate_configuration()` and the alternate settings in `settings.php` for
+this to work.
+
+### Guarding against a half-filled index
+
+After a successful full index (`index_complete($numdocs, true)`) the engine saves the collection
+name in its config. If the configured collection differs from the saved one, `is_server_ready()`
+returns "Embedding model changed, full reindex required". Admins then see the problem instead of
+search results that quietly miss content.
 
 ### Scores are "higher is better"
 
@@ -181,6 +240,7 @@ A `store` implementation must:
 - Index the fields used most in filters (`docid`, `areaid`, `contextid`, `courseid`), and build a
   vector index (HNSW or similar) for the collection's distance.
 - Make `ensure_collection()` idempotent, and throw if an existing collection does not match.
+- Keep `collection_exists()` read-only: it must never create anything.
 - In `upsert()`, replace whole documents, atomically per call where the backend allows it (for
   example in one database transaction).
 - Translate every `filter` operator. `in` with an empty list matches nothing. `not`, `and` and
@@ -197,5 +257,7 @@ A `store` implementation must:
 - No embedding source yet. The Moodle AI subsystem on `MDL-RAG-AI-ACTIONS` has no embedding
   action.
 - The engine does not yet translate access information into a `filter`, or use the store.
+- The engine settings (embedding model and dimensions, their alternate versions) and
+  `has_alternate_configuration()` do not exist yet.
 - Optional capabilities such as hybrid (vector + keyword) search are not part of the interface.
   They can be added later as a separate interface that a store may also implement.
