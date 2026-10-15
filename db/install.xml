@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="search/engine/semantic/db" VERSION="20261016" COMMENT="XMLDB file for search_semantic"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="search_semantic_doc" COMMENT="Stored search document, one row per Moodle document. Retrieval loads this by docid after a vector hit.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="docid" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Search document id, areaid-itemid"/>
+        <FIELD NAME="itemid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="title" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="content" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Full document content. A result excerpt comes from the matched chunk, not from this column."/>
+        <FIELD NAME="contextid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="areaid" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="type" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="core_search\manager::TYPE_* constant"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="owneruserid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="User id, or 0 when the document has no owner"/>
+        <FIELD NAME="modified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Unix timestamp"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="groupid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="description1" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="description2" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="docid" TYPE="unique" FIELDS="docid"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="areaid" UNIQUE="false" FIELDS="areaid"/>
+        <INDEX NAME="contextid" UNIQUE="false" FIELDS="contextid"/>
+        <INDEX NAME="courseid" UNIQUE="false" FIELDS="courseid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="search_semantic_chunk" COMMENT="Locator for one file-backed chunk. Text chunks of the document body have no row. A vector hit looks this up by docid and chunkindex.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="docid" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Parent search document id"/>
+        <FIELD NAME="chunkindex" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Chunk position within the document, matching the vector hit index"/>
+        <FIELD NAME="fileid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="files.id of the PDF, audio, or video"/>
+        <FIELD NAME="contenthash" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="files.contenthash at index time. Unchanged hash skips re-embedding."/>
+        <FIELD NAME="start" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Range start. PDF page number, or media offset in whole seconds. The file mimetype decides which."/>
+        <FIELD NAME="end" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Range end. PDF page number, or media offset in whole seconds. The file mimetype decides which."/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="docid-chunkindex" TYPE="unique" FIELDS="docid, chunkindex"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="fileid" UNIQUE="false" FIELDS="fileid"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>

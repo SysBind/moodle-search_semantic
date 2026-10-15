@@ -24,5 +24,17 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$string['pluginname'] = 'Semantic Search Engine';
+$string['pluginname'] = 'Semantic Search';
 $string['privacy:metadata'] = 'The Semantic Search plugin does not store personal data directly.';
+$string['pgvectorheading'] = 'pgvector';
+$string['pgvectorheading_desc'] = 'PostgreSQL database with the vector extension. Each embedding collection is a table in this database.';
+$string['pgvectorhost'] = 'Host';
+$string['pgvectorhost_desc'] = 'Hostname of the PostgreSQL server. Use db when Moodle runs in the project Docker environment.';
+$string['pgvectorport'] = 'Port';
+$string['pgvectorport_desc'] = 'PostgreSQL port. 5432 is the usual value.';
+$string['pgvectordbname'] = 'Database';
+$string['pgvectordbname_desc'] = 'Database name. The vector extension must already be installed in this database.';
+$string['pgvectoruser'] = 'User';
+$string['pgvectoruser_desc'] = 'Database user used for the vector tables.';
+$string['pgvectorpassword'] = 'Password';
+$string['pgvectorpassword_desc'] = 'Password for the database user.';
