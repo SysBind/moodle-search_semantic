@@ -253,11 +253,10 @@ A `store` implementation must:
 
 ## Open items
 
-- No backend implementation yet. pgvector comes first, since the docker environment runs it.
+- pgvector is implemented in `vectorstore\pgvector\store`. It uses the PHP pgsql extension and a database where the vector extension is already installed. Connection settings are on the semantic search admin page.
 - No embedding source yet. The Moodle AI subsystem on `MDL-RAG-AI-ACTIONS` has no embedding
   action.
 - The engine does not yet translate access information into a `filter`, or use the store.
-- The engine settings (embedding model and dimensions, their alternate versions) and
-  `has_alternate_configuration()` do not exist yet.
+- The engine settings for the embedding model and dimensions, and `has_alternate_configuration()`, do not exist yet. The admin page currently configures the pgvector connection only.
 - Optional capabilities such as hybrid (vector + keyword) search are not part of the interface.
   They can be added later as a separate interface that a store may also implement.

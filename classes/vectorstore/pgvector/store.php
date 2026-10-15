@@ -36,6 +36,7 @@ use search_semantic\vectorstore\store_exception;
  * PostgreSQL pgvector implementation of {@see \search_semantic\vectorstore\store}.
  *
  * Each collection is a table. Connection settings come from the semantic search admin page.
+ * Queries go through the PHP pgsql extension, which Moodle already uses for PostgreSQL.
  */
 class store implements \search_semantic\vectorstore\store {
 
@@ -47,8 +48,8 @@ class store implements \search_semantic\vectorstore\store {
         'itemid', 'contextid', 'courseid', 'owneruserid', 'userid', 'groupid', 'type', 'modified',
     ];
 
-    /** @var \PDO|null */
-    private ?\PDO $db = null;
+    /** @var \PgSql\Connection|null */
+    private ?\PgSql\Connection $db = null;
 
     /** @var bool|null Whether this server can pre-filter inside an HNSW scan. */
     private ?bool $iterativescan = null;
@@ -93,6 +94,9 @@ class store implements \search_semantic\vectorstore\store {
      * @return true|string True if ready, otherwise a human readable error message
      */
     public function is_ready(): true|string {
+        if (!function_exists('pg_connect')) {
+            return 'The PHP pgsql extension is not installed';
+        }
         if ($this->host === '' || $this->dbname === '' || $this->user === '') {
             return 'pgvector connection is not configured';
         }
@@ -100,8 +104,6 @@ class store implements \search_semantic\vectorstore\store {
             $version = $this->vector_extension_version();
         } catch (store_exception $e) {
             return $e->debuginfo ?: $e->getMessage();
-        } catch (\PDOException $e) {
-            return $e->getMessage();
         }
         if ($version === false) {
             return 'The vector extension is not installed in the pgvector database';
@@ -116,9 +118,10 @@ class store implements \search_semantic\vectorstore\store {
      * @return bool
      */
     public function collection_exists(collection $collection): bool {
-        $stmt = $this->db()->prepare('SELECT to_regclass(CAST(? AS text)) IS NOT NULL');
-        $stmt->execute([$collection->name]);
-        return (bool)$stmt->fetchColumn();
+        return $this->scalar(
+            'SELECT to_regclass(CAST(? AS text)) IS NOT NULL',
+            [$collection->name],
+        ) === 't';
     }
 
     /**
@@ -130,7 +133,6 @@ class store implements \search_semantic\vectorstore\store {
         if ($this->vector_extension_version() === false) {
             throw new store_exception('The vector extension is not installed in the pgvector database');
         }
-        $db = $this->db();
         $this->ensure_registry();
 
         if ($this->collection_exists($collection)) {
@@ -145,9 +147,9 @@ class store implements \search_semantic\vectorstore\store {
             distance::dot => 'vector_ip_ops',
             distance::euclidean => 'vector_l2_ops',
         };
-        $db->beginTransaction();
+        $this->begin();
         try {
-            $db->exec(
+            $this->execute(
                 "CREATE TABLE {$table} (
                     docid varchar(255) NOT NULL,
                     chunkindex integer NOT NULL,
@@ -166,22 +168,20 @@ class store implements \search_semantic\vectorstore\store {
                 )"
             );
             $hnsw = $this->quote_ident($this->index_name($collection->name, 'hnsw'));
-            $db->exec("CREATE INDEX {$hnsw} ON {$table} USING hnsw (embedding {$ops})");
+            $this->execute("CREATE INDEX {$hnsw} ON {$table} USING hnsw (embedding {$ops})");
             foreach (['areaid', 'contextid', 'courseid'] as $field) {
                 $index = $this->quote_ident($this->index_name($collection->name, $field));
                 $column = $this->quote_field($field);
-                $db->exec("CREATE INDEX {$index} ON {$table} ({$column})");
+                $this->execute("CREATE INDEX {$index} ON {$table} ({$column})");
             }
-            $stmt = $db->prepare(
-                'INSERT INTO ' . $this->quote_ident(self::REGISTRY) . ' (name, dimensions, distance) VALUES (?, ?, ?)'
+            $this->execute(
+                'INSERT INTO ' . $this->quote_ident(self::REGISTRY) . ' (name, dimensions, distance) VALUES (?, ?, ?)',
+                [$collection->name, $dims, $collection->distance->value],
             );
-            $stmt->execute([$collection->name, $dims, $collection->distance->value]);
-            $db->commit();
-        } catch (\PDOException $e) {
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
-            throw new store_exception($e->getMessage());
+            $this->commit();
+        } catch (store_exception $e) {
+            $this->rollback();
+            throw $e;
         }
     }
 
@@ -191,11 +191,19 @@ class store implements \search_semantic\vectorstore\store {
      * @param collection $collection
      */
     public function drop_collection(collection $collection): void {
-        $db = $this->db();
-        $db->exec('DROP TABLE IF EXISTS ' . $this->quote_ident($collection->name));
-        if ($this->registry_exists()) {
-            $stmt = $db->prepare('DELETE FROM ' . $this->quote_ident(self::REGISTRY) . ' WHERE name = ?');
-            $stmt->execute([$collection->name]);
+        $this->begin();
+        try {
+            $this->execute('DROP TABLE IF EXISTS ' . $this->quote_ident($collection->name));
+            if ($this->registry_exists()) {
+                $this->execute(
+                    'DELETE FROM ' . $this->quote_ident(self::REGISTRY) . ' WHERE name = ?',
+                    [$collection->name],
+                );
+            }
+            $this->commit();
+        } catch (store_exception $e) {
+            $this->rollback();
+            throw $e;
         }
     }
 
@@ -215,14 +223,12 @@ class store implements \search_semantic\vectorstore\store {
             }
         }
 
-        $db = $this->db();
         $table = $this->quote_ident($collection->name);
-        $db->beginTransaction();
+        $this->begin();
         try {
             $docids = array_values(array_unique(array_map(fn(chunk $chunk): string => $chunk->docid, $chunks)));
             $in = implode(', ', array_fill(0, count($docids), '?'));
-            $delete = $db->prepare("DELETE FROM {$table} WHERE docid IN ({$in})");
-            $delete->execute($docids);
+            $this->execute("DELETE FROM {$table} WHERE docid IN ({$in})", $docids);
 
             $metafields = array_values(array_filter(
                 chunk::FILTERABLE_FIELDS,
@@ -232,9 +238,7 @@ class store implements \search_semantic\vectorstore\store {
             $quoted = array_map(fn(string $field): string => $field === 'embedding' ? '"embedding"' : $this->quote_field_or_column($field), $columns);
             $holders = array_fill(0, count($columns), '?');
             $holders[3] = 'CAST(? AS vector)';
-            $insert = $db->prepare(
-                'INSERT INTO ' . $table . ' (' . implode(', ', $quoted) . ') VALUES (' . implode(', ', $holders) . ')'
-            );
+            $insert = 'INSERT INTO ' . $table . ' (' . implode(', ', $quoted) . ') VALUES (' . implode(', ', $holders) . ')';
             foreach ($chunks as $chunk) {
                 $params = [
                     $chunk->docid,
@@ -245,14 +249,12 @@ class store implements \search_semantic\vectorstore\store {
                 foreach ($metafields as $field) {
                     $params[] = $chunk->metadata[$field] ?? null;
                 }
-                $insert->execute($params);
+                $this->execute($insert, $params);
             }
-            $db->commit();
-        } catch (\PDOException $e) {
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
-            throw new store_exception($e->getMessage());
+            $this->commit();
+        } catch (store_exception $e) {
+            $this->rollback();
+            throw $e;
         }
     }
 
@@ -264,12 +266,7 @@ class store implements \search_semantic\vectorstore\store {
      */
     public function delete(collection $collection, filter $filter): void {
         [$where, $params] = $this->compile_filter($filter);
-        $sql = 'DELETE FROM ' . $this->quote_ident($collection->name) . ' WHERE ' . $where;
-        try {
-            $this->db()->prepare($sql)->execute($params);
-        } catch (\PDOException $e) {
-            throw new store_exception($e->getMessage());
-        }
+        $this->execute('DELETE FROM ' . $this->quote_ident($collection->name) . ' WHERE ' . $where, $params);
     }
 
     /**
@@ -324,21 +321,16 @@ class store implements \search_semantic\vectorstore\store {
         }
         $sql .= " ORDER BY embedding {$operator} CAST(? AS vector) LIMIT " . (int)$query->limit;
 
-        $db = $this->db();
-        $db->beginTransaction();
+        $this->begin();
         try {
             if ($this->supports_iterative_scan()) {
-                $db->exec("SET LOCAL hnsw.iterative_scan = relaxed_order");
+                $this->execute('SET LOCAL hnsw.iterative_scan = relaxed_order');
             }
-            $stmt = $db->prepare($sql);
-            $stmt->execute($params);
-            $rows = $stmt->fetchAll();
-            $db->commit();
-        } catch (\PDOException $e) {
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
-            throw new store_exception($e->getMessage());
+            $rows = $this->rows($sql, $params);
+            $this->commit();
+        } catch (store_exception $e) {
+            $this->rollback();
+            throw $e;
         }
 
         $hits = [];
@@ -357,26 +349,160 @@ class store implements \search_semantic\vectorstore\store {
     /**
      * Opens the configured PostgreSQL connection.
      *
-     * @return \PDO
+     * @return \PgSql\Connection
      */
-    private function db(): \PDO {
+    private function db(): \PgSql\Connection {
         if ($this->db) {
             return $this->db;
+        }
+        if (!function_exists('pg_connect')) {
+            throw new store_exception('The PHP pgsql extension is not installed');
         }
         if ($this->host === '' || $this->dbname === '' || $this->user === '') {
             throw new store_exception('pgvector connection is not configured');
         }
-        $dsn = "pgsql:host={$this->host};port={$this->port};dbname={$this->dbname};connect_timeout=3";
+        $connection = "host='" . $this->conn_value($this->host) . "'" .
+            " port='" . $this->port . "'" .
+            " user='" . $this->conn_value($this->user) . "'" .
+            " password='" . $this->conn_value($this->password) . "'" .
+            " dbname='" . $this->conn_value($this->dbname) . "'" .
+            " connect_timeout=3" .
+            " options='-c client_encoding=utf8 -c standard_conforming_strings=on'";
+
+        $conn = null;
+        ob_start();
         try {
-            $this->db = new \PDO($dsn, $this->user, $this->password, [
-                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-                \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-                \PDO::ATTR_EMULATE_PREPARES => false,
-            ]);
-        } catch (\PDOException $e) {
+            $conn = pg_connect($connection, PGSQL_CONNECT_FORCE_NEW);
+            $dberr = ob_get_contents();
+        } catch (\Throwable $e) {
+            $dberr = $e->getMessage();
+        }
+        ob_end_clean();
+
+        $status = $conn instanceof \PgSql\Connection ? pg_connection_status($conn) : false;
+        if ($status === false || $status === PGSQL_CONNECTION_BAD || !$conn instanceof \PgSql\Connection) {
+            $dberr = trim((string)$dberr);
+            throw new store_exception($dberr !== '' ? $dberr : 'Database connection failed');
+        }
+        $this->db = $conn;
+        return $this->db;
+    }
+
+    /**
+     * Runs a statement and discards the result.
+     *
+     * @param string $sql SQL with ? placeholders
+     * @param array $params
+     */
+    private function execute(string $sql, array $params = []): void {
+        pg_free_result($this->run($sql, $params));
+    }
+
+    /**
+     * Runs a query and returns every row.
+     *
+     * @param string $sql SQL with ? placeholders
+     * @param array $params
+     * @return array[]
+     */
+    private function rows(string $sql, array $params = []): array {
+        $result = $this->run($sql, $params);
+        $rows = pg_fetch_all($result);
+        pg_free_result($result);
+        return $rows ?: [];
+    }
+
+    /**
+     * Runs a query and returns the first column of the first row.
+     *
+     * @param string $sql SQL with ? placeholders
+     * @param array $params
+     * @return mixed Null when the query returns no rows
+     */
+    private function scalar(string $sql, array $params = []): mixed {
+        $rows = $this->rows($sql, $params);
+        if (!$rows) {
+            return null;
+        }
+        return reset($rows[0]);
+    }
+
+    /**
+     * Runs SQL. Placeholders are ? and are rewritten to PostgreSQL $1, $2, ...
+     *
+     * @param string $sql
+     * @param array $params
+     * @return \PgSql\Result
+     */
+    private function run(string $sql, array $params = []): \PgSql\Result {
+        $sql = $this->placeholders($sql);
+        $bound = [];
+        foreach ($params as $value) {
+            $bound[] = $value === null ? null : (string)$value;
+        }
+        try {
+            $result = $bound === []
+                ? @pg_query($this->db(), $sql)
+                : @pg_query_params($this->db(), $sql, $bound);
+        } catch (\Throwable $e) {
             throw new store_exception($e->getMessage());
         }
-        return $this->db;
+        if ($result === false) {
+            throw new store_exception(pg_last_error($this->db()) ?: 'PostgreSQL query failed');
+        }
+        return $result;
+    }
+
+    /**
+     * Replaces ? placeholders with $1, $2, ... in order.
+     *
+     * @param string $sql
+     * @return string
+     */
+    private function placeholders(string $sql): string {
+        $index = 0;
+        return preg_replace_callback('/\?/', function() use (&$index): string {
+            $index++;
+            return '$' . $index;
+        }, $sql);
+    }
+
+    /**
+     * Starts a transaction.
+     */
+    private function begin(): void {
+        $this->execute('BEGIN');
+    }
+
+    /**
+     * Commits the current transaction.
+     */
+    private function commit(): void {
+        $this->execute('COMMIT');
+    }
+
+    /**
+     * Rolls back the current transaction when one is open.
+     */
+    private function rollback(): void {
+        $status = pg_transaction_status($this->db());
+        if ($status !== PGSQL_TRANSACTION_INTRANS && $status !== PGSQL_TRANSACTION_INERROR) {
+            return;
+        }
+        $result = @pg_query($this->db(), 'ROLLBACK');
+        if ($result !== false) {
+            pg_free_result($result);
+        }
+    }
+
+    /**
+     * Escapes a connection-string value for libpq quoting.
+     *
+     * @param string $value
+     * @return string
+     */
+    private function conn_value(string $value): string {
+        return addcslashes($value, "'\\");
     }
 
     /**
@@ -384,7 +510,7 @@ class store implements \search_semantic\vectorstore\store {
      */
     private function ensure_registry(): void {
         $table = $this->quote_ident(self::REGISTRY);
-        $this->db()->exec(
+        $this->execute(
             "CREATE TABLE IF NOT EXISTS {$table} (
                 name varchar(63) PRIMARY KEY,
                 dimensions integer NOT NULL,
@@ -399,9 +525,7 @@ class store implements \search_semantic\vectorstore\store {
      * @return bool
      */
     private function registry_exists(): bool {
-        $stmt = $this->db()->prepare('SELECT to_regclass(CAST(? AS text)) IS NOT NULL');
-        $stmt->execute([self::REGISTRY]);
-        return (bool)$stmt->fetchColumn();
+        return $this->scalar('SELECT to_regclass(CAST(? AS text)) IS NOT NULL', [self::REGISTRY]) === 't';
     }
 
     /**
@@ -410,11 +534,11 @@ class store implements \search_semantic\vectorstore\store {
      * @param collection $collection
      */
     private function assert_same_collection(collection $collection): void {
-        $stmt = $this->db()->prepare(
-            'SELECT dimensions, distance FROM ' . $this->quote_ident(self::REGISTRY) . ' WHERE name = ?'
+        $rows = $this->rows(
+            'SELECT dimensions, distance FROM ' . $this->quote_ident(self::REGISTRY) . ' WHERE name = ?',
+            [$collection->name],
         );
-        $stmt->execute([$collection->name]);
-        $row = $stmt->fetch();
+        $row = $rows[0] ?? null;
         if (!$row) {
             throw new store_exception('Collection ' . $collection->name . ' exists without distance metadata');
         }
@@ -434,9 +558,7 @@ class store implements \search_semantic\vectorstore\store {
      * @return string|false
      */
     private function vector_extension_version(): string|false {
-        $version = $this->db()->query(
-            "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
-        )->fetchColumn();
+        $version = $this->scalar("SELECT extversion FROM pg_extension WHERE extname = 'vector'");
         if (!is_string($version) || $version === '') {
             return false;
         }
