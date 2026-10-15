@@ -24,6 +24,8 @@
 
 namespace search_semantic;
 
+use search_semantic\vectorstore\stores;
+
 defined('MOODLE_INTERNAL') || die();
 
 /**
@@ -63,5 +65,14 @@ class engine extends \core_search\engine {
 
     public function delete_index_for_course(int $oldcourseid) {
         return true;
+    }
+
+    /**
+     * Whether the query-only alternate store settings are filled in.
+     *
+     * @return bool
+     */
+    public function has_alternate_configuration(): bool {
+        return stores::is_configured($this->config, 'alternate');
     }
 }

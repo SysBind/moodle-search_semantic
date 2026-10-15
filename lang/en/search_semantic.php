@@ -26,6 +26,13 @@ defined('MOODLE_INTERNAL') || die();
 
 $string['pluginname'] = 'Semantic Search';
 $string['privacy:metadata'] = 'The Semantic Search plugin does not store personal data directly.';
+$string['storeheading'] = 'Vector store';
+$string['storeheading_desc'] = 'Database that holds embedding collections. Indexing uses the settings in this section. Queries use them as well, unless a query-only alternate configuration is selected on the Manage global search page.';
+$string['storetype'] = 'Store type';
+$string['storetype_desc'] = 'Vector database used for indexing and for search.';
+$string['alternatestoretype_desc'] = 'Vector database used when this engine is the query-only search engine with alternate settings. Choose None to leave the alternate configuration unset.';
+$string['storetypepgvector'] = 'pgvector';
+$string['storetypenone'] = 'None';
 $string['pgvectorheading'] = 'pgvector';
 $string['pgvectorheading_desc'] = 'PostgreSQL database with the vector extension. Each embedding collection is a table in this database.';
 $string['pgvectorhost'] = 'Host';

@@ -257,6 +257,6 @@ A `store` implementation must:
 - No embedding source yet. The Moodle AI subsystem on `MDL-RAG-AI-ACTIONS` has no embedding
   action.
 - The engine does not yet translate access information into a `filter`, or use the store.
-- The engine settings for the embedding model and dimensions, and `has_alternate_configuration()`, do not exist yet. The admin page currently configures the pgvector connection only.
+- The admin page selects a store type for the indexing configuration and, separately, for the query-only alternate configuration. `has_alternate_configuration()` is true once the alternate store's connection fields are filled in. Embedding model and dimension settings do not exist yet.
 - Optional capabilities such as hybrid (vector + keyword) search are not part of the interface.
   They can be added later as a separate interface that a store may also implement.

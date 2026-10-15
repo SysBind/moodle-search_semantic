@@ -26,42 +26,35 @@ defined('MOODLE_INTERNAL') || die();
 
 if ($ADMIN->fulltree) {
     $settings->add(new admin_setting_heading(
-        'search_semantic_pgvector',
-        new lang_string('pgvectorheading', 'search_semantic'),
-        new lang_string('pgvectorheading_desc', 'search_semantic'),
+        'search_semantic_store',
+        new lang_string('storeheading', 'search_semantic'),
+        new lang_string('storeheading_desc', 'search_semantic'),
     ));
-    $settings->add(new admin_setting_configtext(
-        'search_semantic/pgvectorhost',
-        new lang_string('pgvectorhost', 'search_semantic'),
-        new lang_string('pgvectorhost_desc', 'search_semantic'),
-        '127.0.0.1',
-        PARAM_HOST,
+
+    $storetypes = [];
+    foreach (\search_semantic\vectorstore\stores::options() as $type => $stringid) {
+        $storetypes[$type] = new lang_string($stringid, 'search_semantic');
+    }
+    $settings->add(new admin_setting_configselect(
+        'search_semantic/storetype',
+        new lang_string('storetype', 'search_semantic'),
+        new lang_string('storetype_desc', 'search_semantic'),
+        \search_semantic\vectorstore\stores::PGVECTOR,
+        $storetypes,
     ));
-    $settings->add(new admin_setting_configtext(
-        'search_semantic/pgvectorport',
-        new lang_string('pgvectorport', 'search_semantic'),
-        new lang_string('pgvectorport_desc', 'search_semantic'),
-        5432,
-        PARAM_INT,
+    \search_semantic\vectorstore\stores::add_admin_settings($settings, '', 'storetype');
+
+    $settings->add(new admin_setting_heading(
+        'search_semantic_alternatesettings',
+        new lang_string('searchalternatesettings', 'admin'),
+        new lang_string('searchalternatesettings_desc', 'admin'),
     ));
-    $settings->add(new admin_setting_configtext(
-        'search_semantic/pgvectordbname',
-        new lang_string('pgvectordbname', 'search_semantic'),
-        new lang_string('pgvectordbname_desc', 'search_semantic'),
-        'moodle',
-        PARAM_ALPHANUMEXT,
-    ));
-    $settings->add(new admin_setting_configtext(
-        'search_semantic/pgvectoruser',
-        new lang_string('pgvectoruser', 'search_semantic'),
-        new lang_string('pgvectoruser_desc', 'search_semantic'),
-        'postgres',
-        PARAM_RAW_TRIMMED,
-    ));
-    $settings->add(new admin_setting_configpasswordunmask(
-        'search_semantic/pgvectorpassword',
-        new lang_string('pgvectorpassword', 'search_semantic'),
-        new lang_string('pgvectorpassword_desc', 'search_semantic'),
+    $settings->add(new admin_setting_configselect(
+        'search_semantic/alternatestoretype',
+        new lang_string('storetype', 'search_semantic'),
+        new lang_string('alternatestoretype_desc', 'search_semantic'),
         '',
+        ['' => new lang_string('storetypenone', 'search_semantic')] + $storetypes,
     ));
+    \search_semantic\vectorstore\stores::add_admin_settings($settings, 'alternate', 'alternatestoretype');
 }
