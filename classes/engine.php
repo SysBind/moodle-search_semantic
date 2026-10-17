@@ -24,7 +24,8 @@
 
 namespace search_semantic;
 
-use search_semantic\vectorstore\stores;
+use search_semantic\vectorstore;
+use search_semantic\vectorstore\pgvector;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -32,6 +33,15 @@ defined('MOODLE_INTERNAL') || die();
  * Bare skeleton semantic search engine.
  */
 class engine extends \core_search\engine {
+
+    /** @var search_semantic\vectorstore\store */
+    private store $store = null;
+
+    public function __construct(bool $alternateconfiguration = false) {
+        parent::__construct($alternateconfiguration);
+
+        $this->store = new search_semantic\vectorstore\pgvector($this->config);
+    }    
 
     public function add_document($document, $fileindexing = false) {
         return true;

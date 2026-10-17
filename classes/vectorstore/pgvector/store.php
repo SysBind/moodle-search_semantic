@@ -74,10 +74,7 @@ class store implements \search_semantic\vectorstore\store {
      *
      * @param \stdClass|null $config Plugin config. Null reads search_semantic config.
      */
-    public function __construct(?\stdClass $config = null) {
-        if ($config === null) {
-            $config = get_config('search_semantic');
-        }
+    public function __construct(?\stdClass $config) {
         $this->host = (string)($config->pgvectorhost ?? '');
         $this->port = (int)($config->pgvectorport ?? 5432);
         if ($this->port < 1) {
