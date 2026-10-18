@@ -35,12 +35,15 @@ defined('MOODLE_INTERNAL') || die();
 class engine extends \core_search\engine {
 
     /** @var search_semantic\vectorstore\store */
-    private store $store = null;
+    private store $store;
 
     public function __construct(bool $alternateconfiguration = false) {
         parent::__construct($alternateconfiguration);
 
-        $this->store = new search_semantic\vectorstore\pgvector($this->config);
+        if ($this->config->storetype == stores::PGVECTOR) {
+            $this->store = new search_semantic\vectorstore\pgvector\store($this->config);
+        }
+        throw new \core_search\engine_exception('unknownstoretype', 'search_semantic', '', $this->config->storetype);
     }    
 
     public function add_document($document, $fileindexing = false) {

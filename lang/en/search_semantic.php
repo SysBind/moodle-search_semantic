@@ -33,6 +33,7 @@ $string['storetype_desc'] = 'Vector database used for indexing and for search.';
 $string['alternatestoretype_desc'] = 'Vector database used when this engine is the query-only search engine with alternate settings. Choose None to leave the alternate configuration unset.';
 $string['storetypepgvector'] = 'pgvector';
 $string['storetypenone'] = 'None';
+$string['unknownstoretype'] = 'Uknown Store Type "{$a}"'
 $string['pgvectorheading'] = 'pgvector';
 $string['pgvectorheading_desc'] = 'PostgreSQL database with the vector extension. Each embedding collection is a table in this database.';
 $string['pgvectorhost'] = 'Host';
