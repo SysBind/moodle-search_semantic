@@ -42,6 +42,37 @@ if ($ADMIN->fulltree) {
         \search_semantic\vectorstore\stores::PGVECTOR,
         $storetypes,
     ));
+
+    $locked = !empty(get_config('search_semantic', 'embeddinglocked'));
+    if ($locked) {
+        $a = (object)[
+            'providerid' => (int)get_config('search_semantic', 'lockedembeddingproviderid'),
+            'model' => (string)get_config('search_semantic', 'lockedembeddingmodel'),
+            'dimensions' => (int)get_config('search_semantic', 'lockedembeddingdimensions'),
+        ];
+        $settings->add(new admin_setting_heading(
+            'search_semantic_embeddinglock',
+            new lang_string('embeddingselectionlocked', 'search_semantic'),
+            new lang_string('embeddingselectionlocked_desc', 'search_semantic', $a),
+        ));
+    } else {
+        $provideroptions = \search_semantic\local\embedding_options::get_provider_options();
+        $settings->add(new admin_setting_configselect(
+            'search_semantic/embeddingproviderid',
+            new lang_string('embeddingproviderid', 'search_semantic'),
+            new lang_string('embeddingproviderid_desc', 'search_semantic'),
+            '',
+            ['' => new lang_string('embeddingproviderselect', 'search_semantic')] + $provideroptions,
+        ));
+        if (!$provideroptions) {
+            $settings->add(new admin_setting_heading(
+                'search_semantic_embeddingnoprov',
+                '',
+                new lang_string('embeddingprovidernoneavailable', 'search_semantic'),
+            ));
+        }
+    }
+
     \search_semantic\vectorstore\stores::add_admin_settings($settings, '', 'storetype');
 
     $settings->add(new admin_setting_heading(

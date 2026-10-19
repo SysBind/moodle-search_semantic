@@ -33,6 +33,8 @@ defined('MOODLE_INTERNAL') || die();
 class engine_test extends \advanced_testcase {
 
     public function test_engine_instantiation(): void {
+        $this->resetAfterTest();
+        set_config('storetype', 'pgvector', 'search_semantic');
         $engine = new \search_semantic\engine();
         $this->assertTrue($engine->is_installed());
     }
@@ -43,6 +45,7 @@ class engine_test extends \advanced_testcase {
      */
     public function test_alternate_configuration(): void {
         $this->resetAfterTest();
+        set_config('storetype', 'pgvector', 'search_semantic');
 
         $engine = new engine();
         $this->assertFalse($engine->has_alternate_configuration());
