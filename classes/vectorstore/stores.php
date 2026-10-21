@@ -114,6 +114,11 @@ final class stores {
 
             foreach ($configuration['fields'] as [$name, $label, $desc, $default, $param]) {
                 $settingname = 'search_semantic/' . $prefix . $name;
+                if ($prefix !== '') {
+                    // The alternate (query-only) store is opt-in and must point somewhere else than the
+                    // main store, so it gets no defaults: is_configured() stays false until filled in.
+                    $default = '';
+                }
                 if ($param === 'password') {
                     $setting = new \admin_setting_configpasswordunmask(
                         $settingname,

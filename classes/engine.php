@@ -37,8 +37,8 @@ defined('MOODLE_INTERNAL') || die();
  * Semantic search engine.
  */
 class engine extends \core_search\engine {
-    /** @var \search_semantic\vectorstore\store */
-    private \search_semantic\vectorstore\store $store;
+    /** @var \search_semantic\vectorstore\store|null Created lazily: core instantiates engines before they are configured. */
+    private ?\search_semantic\vectorstore\store $store = null;
 
     /** @var embedding_client */
     private embedding_client $embedder;
@@ -50,9 +50,24 @@ class engine extends \core_search\engine {
         parent::__construct($alternateconfiguration);
 
         $this->embedder = new embedding_client();
+    }
+
+    /**
+     * Vector store for the configured store type.
+     *
+     * Resolved on first use rather than in the constructor, because core constructs every search
+     * engine when building admin settings (including during install) before any store is configured.
+     *
+     * @return vectorstore\store
+     * @throws \core_search\engine_exception if no supported store type is configured.
+     */
+    private function get_store(): vectorstore\store {
+        if ($this->store !== null) {
+            return $this->store;
+        }
         if (($this->config->storetype ?? '') === stores::PGVECTOR) {
             $this->store = new vectorstore\pgvector\store($this->config);
-            return;
+            return $this->store;
         }
         throw new \core_search\engine_exception('unknownstoretype', 'search_semantic', '', $this->config->storetype ?? '');
     }
@@ -87,22 +102,22 @@ class engine extends \core_search\engine {
         if ($chunks) {
             $this->lock_embedding_selection($selectedproviderid, $selectedmodel, count($chunks[0]->vector));
             $collection = $this->get_collection(count($chunks[0]->vector));
-            $this->store->ensure_collection($collection);
-            $this->store->upsert($collection, $chunks);
+            $this->get_store()->ensure_collection($collection);
+            $this->get_store()->upsert($collection, $chunks);
         }
         return true;
     }
 
     public function delete_by_id($id) {
-        $this->store->delete($this->get_default_collection(), filter::eq('docid', (string)$id));
+        $this->get_store()->delete($this->get_default_collection(), filter::eq('docid', (string)$id));
     }
 
     public function delete($areaid = null) {
         if ($areaid === null) {
-            $this->store->delete($this->get_default_collection(), filter::all());
+            $this->get_store()->delete($this->get_default_collection(), filter::all());
             return;
         }
-        $this->store->delete($this->get_default_collection(), filter::eq('areaid', (string)$areaid));
+        $this->get_store()->delete($this->get_default_collection(), filter::eq('areaid', (string)$areaid));
     }
 
     public function execute_query($formdata, $accessinfo, $limit = 0) {
@@ -128,12 +143,12 @@ class engine extends \core_search\engine {
         }
 
         $collection = $this->get_collection(count($queryvector));
-        if (!$this->store->collection_exists($collection)) {
+        if (!$this->get_store()->collection_exists($collection)) {
             return [];
         }
         $limit = $limit > 0 ? $limit : \core_search\manager::MAX_RESULTS;
         $queryfilter = $this->build_query_filter($formdata, $accessinfo);
-        $hits = $this->store->search($collection, new query($queryvector, $limit, $queryfilter));
+        $hits = $this->get_store()->search($collection, new query($queryvector, $limit, $queryfilter));
 
         $results = [];
         $seen = [];
@@ -175,7 +190,11 @@ class engine extends \core_search\engine {
     }
 
     public function is_server_ready() {
-        $ready = $this->store->is_ready();
+        try {
+            $ready = $this->get_store()->is_ready();
+        } catch (\core_search\engine_exception $e) {
+            return $e->getMessage();
+        }
         if ($ready !== true) {
             return $ready;
         }
@@ -200,12 +219,12 @@ class engine extends \core_search\engine {
     }
 
     public function delete_index_for_context(int $oldcontextid) {
-        $this->store->delete($this->get_default_collection(), filter::eq('contextid', $oldcontextid));
+        $this->get_store()->delete($this->get_default_collection(), filter::eq('contextid', $oldcontextid));
         return true;
     }
 
     public function delete_index_for_course(int $oldcourseid) {
-        $this->store->delete($this->get_default_collection(), filter::eq('courseid', $oldcourseid));
+        $this->get_store()->delete($this->get_default_collection(), filter::eq('courseid', $oldcourseid));
         return true;
     }
 

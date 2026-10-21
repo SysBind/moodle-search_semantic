@@ -7,7 +7,7 @@
     <TABLE NAME="search_semantic_doc" COMMENT="Stored search document, one row per Moodle document. Retrieval loads this by docid after a vector hit.">
       <FIELDS>        
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="collection" TYPE="char" LENGTH="255" NOTNULL="true"/>
+        <FIELD NAME="collection" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="Vector store collection name. Kept short so the unique key with docid stays under the index length limit."/>
         <FIELD NAME="docid" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Search document id, areaid-itemid"/>
         <FIELD NAME="itemid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="title" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
@@ -50,7 +50,7 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="fileid" UNIQUE="false" FIELDS="fileid"/>
-        <INDEX NAME="docid" UNIQUE="false" FIELDS="fileid"/>
+        <INDEX NAME="docid" UNIQUE="false" FIELDS="docid"/>
       </INDEXES>
     </TABLE>
   </TABLES>

@@ -112,16 +112,10 @@ class embedding_client {
             return null;
         }
 
+        // Process through core with the selected instance pinned: no failover to another
+        // instance, since its vectors would not be comparable with what is already indexed.
         $action = new embed_text($contextid, $userid, $text);
-        $processclass = $this->get_process_class($provider, $action);
-        if (!class_exists($processclass)) {
-            $this->lasterror = get_string('embeddingprocessorunavailable', 'search_semantic');
-            return null;
-        }
-
-        $processor = new $processclass($provider, $action);
-        $response = $processor->process();
-        $this->store_action_result($provider, $action, $response);
+        $response = $this->manager->process_action($action, (int)$provider->id);
 
         if (!$response->get_success()) {
             $this->lasterror = $response->get_errormessage();
@@ -183,32 +177,5 @@ class embedding_client {
             return null;
         }
         return $provider;
-    }
-
-    /**
-     * Resolve process class for selected provider and action.
-     *
-     * @param provider $provider
-     * @param embed_text $action
-     * @return string
-     */
-    private function get_process_class(provider $provider, embed_text $action): string {
-        $classname = 'process_' . $action->get_basename();
-        $classpath = substr($provider::class, 0, strpos($provider::class, '\\') + 1);
-        return $classpath . $classname;
-    }
-
-    /**
-     * Store the action result using core_ai manager's internal persistence.
-     *
-     * @param provider $provider
-     * @param embed_text $action
-     * @param \core_ai\aiactions\responses\response_base $response
-     * @return void
-     */
-    private function store_action_result(provider $provider, embed_text $action, \core_ai\aiactions\responses\response_base $response): void {
-        $method = new \ReflectionMethod($this->manager, 'store_action_result');
-        $method->setAccessible(true);
-        $method->invoke($this->manager, $provider, $action, $response);
     }
 }

@@ -47,7 +47,6 @@ $string['embeddingprovidernotconfigured'] = 'Selected embedding provider is not 
 $string['embeddingproviderunsupported'] = 'Selected provider does not support embed_text.';
 $string['embeddingprovideractiondisabled'] = 'embed_text is disabled on the selected provider.';
 $string['embeddingmodelrequired'] = 'Selected provider has no embed_text model configured.';
-$string['embeddingprocessorunavailable'] = 'Embedding processor class is missing for selected provider.';
 $string['embeddingemptyresponse'] = 'Embedding provider returned an empty embedding vector.';
 $string['embeddinglockmodelmismatch'] = 'Selected embedding model/provider does not match the locked indexing configuration.';
 $string['embeddinglockdimensionmismatch'] = 'Embedding dimensions do not match the locked indexing configuration.';
