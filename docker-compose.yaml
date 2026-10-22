@@ -17,8 +17,8 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: >
       "if [ ! -f '/var/www/html/public/version.php' ]; then
-         echo 'Checking out MOODLE_503_STABLE from moodle....' &&
-         git clone --depth 1 -b MDL-RAG-AI-ACTIONS https://github.com/SysBind/moodle /tmp/moodle &&
+         echo 'Checking out MDL-aiaction-embed-text from moodle....' &&
+         git clone --depth 1 -b MDL-aiaction-embed-text https://github.com/SysBind/moodle /tmp/moodle &&
          cp -a /tmp/moodle/. /var/www/html/ &&
          rm -rf /tmp/moodle;
        fi"
