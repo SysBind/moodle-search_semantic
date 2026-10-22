@@ -168,7 +168,7 @@ class engine extends \core_search\engine {
                 'id' => $hit->docid,
                 'itemid' => $itemid,
                 'areaid' => $areaid,
-                'title' => trim(core_text::substr($hit->text, 0, 120)),
+                'title' => trim(\core_text::substr($hit->text, 0, 120)),
                 'content' => $hit->text,
                 'contextid' => (int)($hit->metadata['contextid'] ?? 0),
                 'type' => (int)($hit->metadata['type'] ?? \core_search\manager::TYPE_TEXT),
@@ -252,9 +252,9 @@ class engine extends \core_search\engine {
         $chunklen = 800;
         $parts = [];
         $offset = 0;
-        $length = core_text::strlen($text);
+        $length = \core_text::strlen($text);
         while ($offset < $length) {
-            $parts[] = core_text::substr($text, $offset, $chunklen);
+            $parts[] = \core_text::substr($text, $offset, $chunklen);
             $offset += $chunklen;
         }
         return $parts;
