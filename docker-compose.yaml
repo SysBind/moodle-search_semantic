@@ -18,7 +18,7 @@ services:
     command: >
       "if [ ! -f '/var/www/html/public/version.php' ]; then
          echo 'Checking out MDL-aiaction-embed-text from moodle....' &&
-         git clone --depth 1 -b MDL-aiaction-embed-text https://github.com/SysBind/moodle /tmp/moodle &&
+         git clone --depth 1 -b MDL-90218 https://github.com/SysBind/moodle /tmp/moodle &&
          cp -a /tmp/moodle/. /var/www/html/ &&
          rm -rf /tmp/moodle;
        fi"
